@@ -1,0 +1,48 @@
+name: Infra Prod
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'terraform/**'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::<ACCOUNT_ID>:role/github-terraform-prod
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+
+      - name: Terraform Init
+        working-directory: ./terraform/envs/prod
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./terraform/envs/prod
+        run: terraform plan -out=tfplan -var="account_id=<ACCOUNT_ID>" -var="domain_name=app.med-hippa.example.com" -var="certificate_arn=<ACM_ARN>"
+
+      - name: Terraform Apply (manual approval recommended)
+        if: github.ref == 'refs/heads/main'
+        working-directory: ./terraform/envs/prod
+        run: terraform apply -auto-approve tfplan
+

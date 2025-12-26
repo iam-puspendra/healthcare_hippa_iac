@@ -1,0 +1,25 @@
+variable "db_username" {
+  type        = string
+  description = "Master username for DocumentDB"
+}
+
+variable "db_password" {
+  type        = string
+  description = "Master password for DocumentDB"
+  sensitive   = true
+}
+
+variable "kms_key_id" {
+  type        = string
+  description = "KMS key ARN for DocumentDB encryption"
+}
+
+variable "private_db_subnet_ids" {
+  type        = list(string)
+  description = "List of private db subnet IDs"
+}
+
+variable "instance_count" {
+  type    = number
+  default = 1
+}

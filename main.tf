@@ -13,51 +13,7 @@ provider "aws" {
   region = "us-east-1"
 }
 
-# Define VPC
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags = {
-    Name = "hipaa-vpc"
-  }
-}
-
-# Define public subnets
-resource "aws_subnet" "public" {
-  count                   = 2
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.${count.index + 1}.0/24"
-  availability_zone       = "us-east-1${element(["a", "b"], count.index)}"
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "public-${count.index}"
-  }
-}
-
-# Define private app subnets
-resource "aws_subnet" "private_app" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.${count.index + 3}.0/24"
-  availability_zone = "us-east-1${element(["a", "b"], count.index)}"
-  tags = {
-    Name = "private-app-${count.index}"
-  }
-}
-
-# Define private db subnets
-resource "aws_subnet" "private_db" {
-  count             = 2
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = "10.0.${count.index + 5}.0/24"
-  availability_zone = "us-east-1${element(["a", "b"], count.index)}"
-  tags = {
-    Name = "private-db-${count.index}"
-  }
-}
-
-# Define KMS key
+# KMS key (global)
 resource "aws_kms_key" "cmk" {
   description         = "HIPAA CMK for DocumentDB and S3"
   enable_key_rotation = true
@@ -92,78 +48,57 @@ resource "aws_kms_key" "cmk" {
   })
 }
 
-
-# Define security group for ALB
-resource "aws_security_group" "alb" {
-  name        = "alb-sg"
-  description = "Security group for ALB"
-  vpc_id      = aws_vpc.main.id
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-# Define CloudWatch log group
+# Shared CloudWatch log group
 resource "aws_cloudwatch_log_group" "app" {
   name              = "hipaa-app-logs"
   retention_in_days = 90
   kms_key_id        = aws_kms_key.cmk.arn
 }
 
-# Call modules
+# IAM module
 module "iam" {
   source        = "./modules/iam"
   kms_key_arn   = aws_kms_key.cmk.arn
   log_group_arn = aws_cloudwatch_log_group.app.arn
 }
 
+# VPC module – all networking lives here
+module "vpc" {
+  source = "./modules/vpc"
+
+  vpc_cidr            = var.vpc_cidr
+  public_subnets      = var.public_subnets
+  private_app_subnets = var.private_app_subnets
+  private_db_subnets  = var.private_db_subnets
+  availability_zones  = var.availability_zones
+  region              = var.region
+  enable_nat_gateway  = true
+}
+
+# Compute (ECS + ALB) – uses outputs from VPC + IAM
 module "compute" {
   source                 = "./modules/compute"
   ecs_execution_role_arn = module.iam.ecs_execution_role_arn
   ecs_task_role_arn      = module.iam.ecs_task_role_arn
-  private_app_subnet_ids = aws_subnet.private_app[*].id
-  public_subnet_ids      = aws_subnet.public[*].id
-  vpc_id                 = aws_vpc.main.id
-  region                 = "us-east-1"
-  kms_key_arn            = aws_kms_key.cmk.arn
-  alb_security_group_id  = aws_security_group.alb.id
-  app_security_group_id  = aws_security_group.app.id
+
+  vpc_id                 = module.vpc.vpc_id
+  public_subnet_ids      = module.vpc.public_subnet_ids
+  private_app_subnet_ids = module.vpc.private_app_subnet_ids
+
+  account_id  = var.account_id
+  region      = var.region
+  kms_key_arn = aws_kms_key.cmk.arn
+
+  alb_security_group_id = module.vpc.alb_sg_id
+  app_security_group_id = module.vpc.app_sg_id
 }
 
+# Database – uses VPC private DB subnets
 module "database" {
   source                = "./modules/database"
   db_username           = "medadmin"
   db_password           = "secH1ppP55wD"
   kms_key_id            = aws_kms_key.cmk.arn
-  private_db_subnet_ids = aws_subnet.private_db[*].id
+  private_db_subnet_ids = module.vpc.private_db_subnet_ids
   instance_count        = 1
-}
-resource "aws_security_group" "app" {
-  name        = "app-sg"
-  description = "Security group for ECS tasks"
-  vpc_id      = aws_vpc.main.id
-  ingress {
-    from_port   = 3000
-    to_port     = 3000
-    protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
-  }
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.main.id
 }

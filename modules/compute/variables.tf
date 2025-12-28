@@ -33,6 +33,11 @@ variable "ecs_task_role_arn" {
   description = "ARN of ECS task role"
 }
 
+variable "account_id" {
+  description = "AWS Account ID"
+  type        = string
+}
+
 variable "region" {
   type        = string
   description = "AWS region"

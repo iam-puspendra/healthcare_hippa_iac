@@ -16,7 +16,7 @@ resource "aws_ecs_task_definition" "frontend" {
   container_definitions = jsonencode([
     {
       name      = "frontend"
-      image     = "frontend:latest"
+      image     = "${var.account_id}.dkr.ecr.${var.region}.amazonaws.com/frontend:latest"
       essential = true
       portMappings = [
         {
@@ -69,10 +69,10 @@ resource "aws_lb" "app" {
 }
 
 resource "aws_lb_target_group" "frontend" {
-  name     = "frontend-tg"
-  port     = 3000
-  protocol = "HTTP"
-  vpc_id   = var.vpc_id
+  name        = "frontend-tg"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
   target_type = "ip"
 }
 
@@ -91,3 +91,4 @@ resource "aws_cloudwatch_log_group" "app" {
   retention_in_days = 90
   kms_key_id        = var.kms_key_arn
 }
+

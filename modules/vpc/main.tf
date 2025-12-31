@@ -63,13 +63,6 @@ resource "aws_route_table_association" "public" {
   subnet_id      = aws_subnet.public[count.index].id
   route_table_id = aws_route_table.public.id
 }
-
-resource "aws_route_table_association" "private_app" {
-  count          = length(var.private_app_subnets)
-  subnet_id      = aws_subnet.private_app[count.index].id
-  route_table_id = aws_route_table.private_app.id
-}
-
 resource "aws_route_table" "private_db" {
   vpc_id = aws_vpc.main.id
   tags = {
@@ -104,17 +97,34 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# Security group for ECS tasks
+# Security group for ECS tasks (3000 + 3001)
 resource "aws_security_group" "app" {
   name        = "app-sg"
-  description = "Security group for ECS tasks"
+  description = "Security group for ECS tasks (frontend 3000 + backend 3001)"
   vpc_id      = aws_vpc.main.id
 
+  # Frontend 3000
   ingress {
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
-    cidr_blocks = ["10.0.0.0/16"]
+    security_groups = [aws_security_group.alb.id]  # ← ALB only, not entire VPC!
+  }
+
+  # Backend 3001  
+  ingress {
+    from_port   = 3001
+    to_port     = 3001
+    protocol    = "tcp"
+    security_groups = [aws_security_group.alb.id]  # ← ALB only!
+  }
+
+  # Health checks
+  ingress {
+    from_port   = 0
+    to_port     = 65535
+    protocol    = "tcp"
+    self        = true
   }
 
   egress {
@@ -123,6 +133,13 @@ resource "aws_security_group" "app" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+# FIXED: Private app route table association (MISSING!)
+resource "aws_route_table_association" "private_app" {
+  count          = length(var.private_app_subnets)
+  subnet_id      = aws_subnet.private_app[count.index].id
+  route_table_id = aws_route_table.private_app.id
 }
 
 # NAT gateway and/or VPC endpoints can also live here

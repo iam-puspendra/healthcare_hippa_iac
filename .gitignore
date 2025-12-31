@@ -7,7 +7,7 @@
 # .tfstate files
 *.tfstate
 *.tfstate.*
-
+terraform.tfvars
 override.tf
 override.tf.json
 *_override.tf

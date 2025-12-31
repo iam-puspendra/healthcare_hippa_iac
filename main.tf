@@ -53,13 +53,17 @@ resource "aws_cloudwatch_log_group" "app" {
   name              = "hipaa-app-logs"
   retention_in_days = 90
   kms_key_id        = aws_kms_key.cmk.arn
+
 }
 
 # IAM module
 module "iam" {
   source        = "./modules/iam"
+  app_name      = "hipaa-app"
   kms_key_arn   = aws_kms_key.cmk.arn
   log_group_arn = aws_cloudwatch_log_group.app.arn
+  db_secret_arn = module.secrets.db_secret_arn
+  depends_on    = [module.secrets]
 }
 
 # VPC module – all networking lives here
@@ -78,8 +82,11 @@ module "vpc" {
 # Compute (ECS + ALB) – uses outputs from VPC + IAM
 module "compute" {
   source                 = "./modules/compute"
-  ecs_execution_role_arn = module.iam.ecs_execution_role_arn
+  ecs_execution_role_arn = module.iam.ecs_task_execution_role_arn
   ecs_task_role_arn      = module.iam.ecs_task_role_arn
+  db_secret_arn          = module.secrets.app_secrets_arn  
+  app_secrets_arn        = module.secrets.app_secrets_arn
+  log_group_name         = aws_cloudwatch_log_group.app.name  
 
   vpc_id                 = module.vpc.vpc_id
   public_subnet_ids      = module.vpc.public_subnet_ids
@@ -96,9 +103,67 @@ module "compute" {
 # Database – uses VPC private DB subnets
 module "database" {
   source                = "./modules/database"
-  db_username           = "medadmin"
-  db_password           = "secH1ppP55wD"
+  db_username           = "mat_board_user"
+  db_password           = "R7Zsu43mmVPP3Vx3"
   kms_key_id            = aws_kms_key.cmk.arn
   private_db_subnet_ids = module.vpc.private_db_subnet_ids
   instance_count        = 1
+}
+
+# Generate secure JWT secret
+resource "random_password" "jwt_secret" {
+  length  = 64
+  special = true
+}
+
+module "secrets" {
+  source = "./modules/secrets"
+  
+  app_name            = "hipaa-app"
+  account_id          = var.account_id
+  documentdb_endpoint = "hipaa-docdb-cluster.cluster-coxso440o22q.us-east-1.docdb.amazonaws.com:27017"
+  documentdb_username = "1wellness"
+  documentdb_password = "R7Zsu43mmVPP3Vx3"
+  documentdb_database = "1wellness"
+  
+  jwt_secret          = random_password.jwt_secret.result
+  
+  depends_on = [module.database]
+
+  # URLs
+  client_url          = "http://hipaa-alb-2027346796.us-east-1.elb.amazonaws.com"
+  base_url            = "http://hipaa-alb-2027346796.us-east-1.elb.amazonaws.com/api"
+  
+  # SMTP
+  smtp_email          = "expertweb634@gmail.com"
+  smtp_password       = "exeo qgdg ecdz rsjd"
+  smtp_host           = "smtp.gmail.com"
+  smtp_port           = "587"
+  
+  # S3 
+  s3_bucket_name = "1wellness-data"
+  s3_region      = "us-east-1"
+  
+  # Email
+  email_from          = "noreply@1wellness.com"
+  admin_mail_from     = "webexpert@yopmail.com"
+  admin_support_mail  = "webexpert@yopmail.com"
+  admin_email         = "admin@1wellness.com"
+  order_confirm_mail_from   = "orders@1wellness.com"
+  
+}
+
+# ADD this to your root main.tf (after database/secrets modules):
+module "s3" {
+  source = "./modules/s3"
+  
+  data_bucket_name = "1wellness-data"   
+  logs_bucket_name = "1wellness-logs"      
+  
+  kms_s3_data_arn = aws_kms_key.cmk.arn   # Your existing KMS key
+  kms_logs_arn    = aws_kms_key.cmk.arn   # Same KMS key for logs
+  
+  app_name = "hipaa-app"
+  
+  depends_on = [aws_kms_key.cmk]
 }

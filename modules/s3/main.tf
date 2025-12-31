@@ -1,16 +1,11 @@
-# modules/s3/main.tf
-variable "data_bucket_name" {}
-variable "logs_bucket_name" {}
-variable "kms_s3_data_arn" {}
-variable "kms_logs_arn" {}
 
 resource "aws_s3_bucket" "data" {
-  bucket = var.data_bucket_name
+  bucket = var.data_bucket_name  
+
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
   bucket = aws_s3_bucket.data.id
-
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
@@ -18,7 +13,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
     }
   }
 }
-
 resource "aws_s3_bucket_public_access_block" "data" {
   bucket                  = aws_s3_bucket.data.id
   block_public_acls       = true

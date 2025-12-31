@@ -46,3 +46,19 @@ variable "app_security_group_id" {
   type        = string
   description = "Security group ID for ECS tasks"
 }
+
+variable "db_secret_arn" {
+  description = "ARN of the DocumentDB secrets manager secret"
+  type        = string
+}
+
+variable "log_group_name" {
+  description = "CloudWatch log group name"
+  type        = string
+  default     = "hipaa-app-logs"
+}
+
+variable "app_secrets_arn" {
+  description = "ARN of the app secrets manager secret"
+  type        = string
+}  

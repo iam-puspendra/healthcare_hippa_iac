@@ -58,12 +58,13 @@ resource "aws_cloudwatch_log_group" "app" {
 
 # IAM module
 module "iam" {
-  source        = "./modules/iam"
-  app_name      = "hipaa-app"
-  kms_key_arn   = aws_kms_key.cmk.arn
-  log_group_arn = aws_cloudwatch_log_group.app.arn
-  db_secret_arn = module.secrets.db_secret_arn
-  depends_on    = [module.secrets]
+  source          = "./modules/iam"
+  app_name        = "hipaa-app"
+  kms_key_arn     = aws_kms_key.cmk.arn
+  log_group_arn   = aws_cloudwatch_log_group.app.arn
+  db_secret_arn   = module.secrets.db_secret_arn
+  app_secrets_arn = module.secrets.app_secrets_arn
+  depends_on      = [module.secrets]
 }
 
 # VPC module – all networking lives here
@@ -77,6 +78,7 @@ module "vpc" {
   availability_zones  = var.availability_zones
   region              = var.region
   enable_nat_gateway  = true
+  docdb_security_group_id = var.docdb_security_group_id
 }
 
 # Compute (ECS + ALB) – uses outputs from VPC + IAM
@@ -100,14 +102,16 @@ module "compute" {
   app_security_group_id = module.vpc.app_sg_id
 }
 
-# Database – uses VPC private DB subnets
+# Database – uses VPC private DB subnets with cost optimization
 module "database" {
   source                = "./modules/database"
-  db_username           = "mat_board_user"
+  db_username           = "wellness_user"
   db_password           = "R7Zsu43mmVPP3Vx3"
   kms_key_id            = aws_kms_key.cmk.arn
   private_db_subnet_ids = module.vpc.private_db_subnet_ids
-  instance_count        = 1
+  instance_count        = 1  # Start with 1 for cost savings
+  vpc_id                = module.vpc.vpc_id
+  app_security_group_id = module.vpc.app_sg_id
 }
 
 # Generate secure JWT secret
@@ -122,7 +126,7 @@ module "secrets" {
   app_name            = "hipaa-app"
   account_id          = var.account_id
   documentdb_endpoint = "hipaa-docdb-cluster.cluster-coxso440o22q.us-east-1.docdb.amazonaws.com:27017"
-  documentdb_username = "1wellness"
+  documentdb_username = "wellness_user"
   documentdb_password = "R7Zsu43mmVPP3Vx3"
   documentdb_database = "1wellness"
   
@@ -131,8 +135,8 @@ module "secrets" {
   depends_on = [module.database]
 
   # URLs
-  client_url          = "http://hipaa-alb-2027346796.us-east-1.elb.amazonaws.com"
-  base_url            = "http://hipaa-alb-2027346796.us-east-1.elb.amazonaws.com/api"
+  client_url          = "https://d2r92yiqcdt8zm.cloudfront.net"
+  base_url            = "https://dilnj1q0848o7.cloudfront.net/api"
   
   # SMTP
   smtp_email          = "expertweb634@gmail.com"
@@ -160,10 +164,41 @@ module "s3" {
   data_bucket_name = "1wellness-data"   
   logs_bucket_name = "1wellness-logs"      
   
-  kms_s3_data_arn = aws_kms_key.cmk.arn   # Your existing KMS key
-  kms_logs_arn    = aws_kms_key.cmk.arn   # Same KMS key for logs
+  kms_s3_data_arn = aws_kms_key.cmk.arn # Your existing KMS key
+  kms_logs_arn    = aws_kms_key.cmk.arn # Same KMS key for logs
   
   app_name = "hipaa-app"
   
   depends_on = [aws_kms_key.cmk]
+}
+
+# CloudFront for Frontend Only
+module "cloudfront" {
+  source = "./modules/cloudfront"
+  
+  alb_dns_name           = module.compute.alb_dns_name
+  alb_security_group_id = module.vpc.alb_sg_id
+  
+  depends_on = [module.compute]
+}
+
+# Backend CloudFront for API only
+module "cloudfront_backend" {
+  source = "./modules/cloudfront-backend"
+  
+  alb_dns_name           = module.compute.alb_dns_name
+  alb_security_group_id = module.vpc.alb_sg_id
+  
+  depends_on = [module.compute]
+}
+
+# Cost Monitoring and Optimization
+module "monitoring" {
+  source = "./modules/monitoring"
+  
+  app_name    = "hipaa-app"
+  region      = var.region
+  kms_logs_arn = aws_kms_key.cmk.arn
+  
+  depends_on = [module.compute, module.database]
 }

@@ -23,3 +23,13 @@ variable "instance_count" {
   type    = number
   default = 1
 }
+
+variable "vpc_id" {
+  type        = string
+  description = "VPC ID where DocumentDB will be deployed"
+}
+
+variable "app_security_group_id" {
+  type        = string
+  description = "Security group ID of the ECS application"
+}

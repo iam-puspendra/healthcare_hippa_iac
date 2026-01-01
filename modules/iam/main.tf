@@ -2,6 +2,7 @@ variable "app_name" { default = "hipaa-app" }
 variable "kms_key_arn" {}
 variable "log_group_arn" {}
 variable "db_secret_arn" {}
+variable "app_secrets_arn" {}
 
 resource "aws_iam_role" "ecs_task_execution_role" {
   name = "${var.app_name}-ecs-task-execution"
@@ -29,11 +30,18 @@ resource "aws_iam_role_policy" "ecs_secrets_policy" {
   role = aws_iam_role.ecs_task_role.id
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = var.db_secret_arn
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.db_secret_arn
+      },
+      {
+        Effect = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.app_secrets_arn
+      }
+    ]
   })
 }
 
@@ -102,11 +110,18 @@ resource "aws_iam_role_policy" "ecs_execution_secrets_policy" {
   role = aws_iam_role.ecs_task_execution_role.name  # ← EXECUTION ROLE (not task role)
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action   = ["secretsmanager:GetSecretValue"]
-      Resource = var.db_secret_arn
-    }]
+    Statement = [
+      {
+        Effect = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.db_secret_arn
+      },
+      {
+        Effect = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
+        Resource = var.app_secrets_arn
+      }
+    ]
   })
 }
 

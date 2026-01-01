@@ -1,32 +1,46 @@
-hipaa-compliant-app/
-├── modules/
-│   ├── vpc/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── kms/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── database/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── compute/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-│   ├── iam/
-│   │   ├── main.tf
-│   │   ├── variables.tf
-│   │   └── outputs.tf
-├── main.tf
-├── variables.tf
-├── outputs.tf
-├── .github/workflows/deploy.yml
-└── README.md
+## Architecture Overview
 
-# HIPAA-Compliant AWS Architecture
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        AWS Cloud (us-east-1)                    │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │   CloudFront    │    │  Route 53 DNS   │    │   CloudWatch    │ │
+│  │   (HTTPS CDN)   │    │   (Optional)    │    │   (Logging)     │ │
+│  │  d2r92y...      │    │                 │    │  90-day retention│ │
+│  └─────────┬───────┘    └─────────────────┘    └─────────────────┘ │
+│            │                                                   │
+│  ┌─────────▼───────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │  Application    │    │   Secrets Mgr    │    │      KMS        │ │
+│  │  Load Balancer  │◄──►│   (Credentials)  │◄──►│   (Encryption)  │ │
+│  │  (ALB)          │    │                 │    │                 │ │
+│  └─────────┬───────┘    └─────────────────┘    └─────────────────┘ │
+│            │                                                   │
+│  ┌─────────▼───────┐    ┌─────────────────┐    ┌─────────────────┐ │
+│  │   ECS Fargate   │    │   DocumentDB     │    │   S3 Buckets    │ │
+│  │  (Containers)   │◄──►│   (Database)     │◄──►│   (Storage)     │ │
+│  │  Frontend/Backend│    │   Encrypted     │    │   Encrypted     │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────┘ │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+# Project Structure
+
+```
+healthcare/
+├── main.tf                 # Root configuration
+├── variables.tf            # Input variables
+├── terraform.tfvars        # Variable values
+├── modules/
+│   ├── vpc/               # Network infrastructure
+│   ├── compute/           # ECS and ALB
+│   ├── database/          # DocumentDB cluster
+│   ├── iam/               # Roles and policies
+│   ├── secrets/           # Secrets Manager
+│   ├── s3/                # S3 buckets
+│   └── cloudfront/        # CDN distribution
+└── README.md              # This file
+```
 
 ## How to Initialize
 

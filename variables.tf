@@ -34,6 +34,5 @@ variable "availability_zones" {
 variable "stripe_secret_key" {
   type        = string
   description = "Stripe Secret Key (Sensitive)"
-  sensitive   = true 
+  sensitive   = true
 }
-

@@ -46,8 +46,13 @@ resource "aws_secretsmanager_secret_version" "app_secrets" {
     S3_BUCKET_NAME    = var.s3_bucket_name
     S3_REGION         = var.s3_region 
   })
+  lifecycle {
+    # This tells Terraform: "Don't update this resource if only the secret_string changes"
+    ignore_changes = [
+      secret_string,
+    ]
+  }
 }
-
 
 
 

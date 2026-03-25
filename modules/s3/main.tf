@@ -2,10 +2,10 @@
 
 # 1. Data Bucket with Lifecycle Policies (use existing)
 resource "aws_s3_bucket" "data_bucket" {
-  bucket = "${var.data_bucket_name}-optimized"  # Different name to avoid conflict
+  bucket = var.data_bucket_name
   
   tags = {
-    Name        = "hipaa-data-bucket-optimized"
+    Name        = "hipaa-data-bucket"
     Environment = "production"
   }
 }
@@ -81,10 +81,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_bucket" {
 
 # 6. Logs Bucket with Cost Optimization (use existing)
 resource "aws_s3_bucket" "logs_bucket" {
-  bucket = "${var.logs_bucket_name}-optimized"  # Different name to avoid conflict
+  bucket = var.logs_bucket_name
   
   tags = {
-    Name        = "hipaa-logs-bucket-optimized"
+    Name        = "hipaa-logs-bucket"
     Environment = "production"
   }
 }

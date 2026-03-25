@@ -103,8 +103,8 @@ resource "aws_lb_target_group" "backend" {
     enabled             = true
     healthy_threshold   = 2
     interval            = 30
-    matcher             = "200-399"  # Accept 404 as valid
-    path                = "/health"
+    matcher             = "200"  # Expect 200 for /api/health
+    path                = "/api/health"
     port               = "traffic-port"
     protocol            = "HTTP"
     timeout             = 10
@@ -140,13 +140,7 @@ resource "aws_lb_listener" "backend" {
   }
 }
 
-# HTTP Listener for CloudFront
-resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.alb.arn
-  port              = "80"
-  protocol          = "HTTP"
-  
-# RULE 1: API → Backend (Priority 10)
+# RULE 2: API → Backend (Priority 10)
 resource "aws_lb_listener_rule" "api" {
   listener_arn = aws_lb_listener.backend.arn
   priority     = 10
@@ -163,7 +157,7 @@ resource "aws_lb_listener_rule" "api" {
   }
 }
 
-# RULE 2: Frontend → Frontend (Priority 20)
+# RULE 3: Frontend → Frontend (Priority 20)
 resource "aws_lb_listener_rule" "frontend" {
   listener_arn = aws_lb_listener.frontend.arn
   priority     = 20

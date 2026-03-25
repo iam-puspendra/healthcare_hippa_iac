@@ -10,7 +10,7 @@ resource "aws_cloudfront_distribution" "hipaa_backend_cdn" {
   comment             = "HIPAA Backend API CDN"
   
   origin {
-    domain_name = var.alb_dns_name
+    domain_name = var.backend_alb_dns_name
     origin_id   = "hipaa-backend-alb"
     
     custom_origin_config {

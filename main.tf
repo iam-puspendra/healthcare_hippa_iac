@@ -56,6 +56,15 @@ resource "aws_cloudwatch_log_group" "app" {
 
 }
 
+# ECR repositories with lifecycle policies
+module "ecr" {
+  source = "./modules/ecr"
+  
+  region      = var.region
+  environment = "production"
+  app_name    = "hipaa-app"
+}
+
 # IAM module
 module "iam" {
   source          = "./modules/iam"
@@ -67,18 +76,17 @@ module "iam" {
   depends_on      = [module.secrets]
 }
 
-# VPC module – all networking lives here
+# VPC module – foundation for all resources
 module "vpc" {
   source = "./modules/vpc"
 
-  vpc_cidr            = var.vpc_cidr
-  public_subnets      = var.public_subnets
-  private_app_subnets = var.private_app_subnets
-  private_db_subnets  = var.private_db_subnets
-  availability_zones  = var.availability_zones
-  region              = var.region
-  enable_nat_gateway  = true
-  docdb_security_group_id = var.docdb_security_group_id
+  vpc_cidr              = var.vpc_cidr
+  public_subnets         = var.public_subnets
+  private_app_subnets   = var.private_app_subnets
+  private_db_subnets    = var.private_db_subnets
+  availability_zones    = var.availability_zones
+  region                = var.region
+  enable_nat_gateway    = true
 }
 
 # Compute (ECS + ALB) – uses outputs from VPC + IAM
@@ -100,6 +108,33 @@ module "compute" {
 
   alb_security_group_id = module.vpc.alb_sg_id
   app_security_group_id = module.vpc.app_sg_id
+}
+
+# Admin Service - dedicated module for admin panel
+module "admin_service" {
+  source = "./modules/admin-service"
+
+  environment           = "production"
+  region               = var.region
+  account_id           = var.account_id
+  image_tag            = "latest"
+
+  ecs_cluster_name          = "hipaa-ecs-cluster"
+  ecs_execution_role_arn    = module.iam.ecs_task_execution_role_arn
+  ecs_task_role_arn         = module.iam.ecs_task_role_arn
+
+  vpc_id                    = module.vpc.vpc_id
+  private_subnet_ids        = module.vpc.private_app_subnet_ids
+  public_subnet_ids         = module.vpc.public_subnet_ids
+  alb_security_group_id     = module.vpc.alb_sg_id
+
+  app_secrets_arn           = module.secrets.app_secrets_arn
+  log_group_name            = "hipaa-app-logs"
+
+  enable_service_discovery  = false
+  create_log_group          = false
+
+  depends_on = [module.compute, module.iam, module.secrets]
 }
 
 # Database – uses VPC private DB subnets with cost optimization
@@ -186,7 +221,7 @@ module "cloudfront" {
 module "cloudfront_backend" {
   source = "./modules/cloudfront-backend"
   
-  alb_dns_name           = module.compute.alb_dns_name
+  backend_alb_dns_name = module.compute.backend_alb_dns_name
   alb_security_group_id = module.vpc.alb_sg_id
   
   depends_on = [module.compute]
@@ -201,4 +236,15 @@ module "monitoring" {
   kms_logs_arn = aws_kms_key.cmk.arn
   
   depends_on = [module.compute, module.database]
+}
+
+# Admin CloudFront for admin panel only
+module "cloudfront_admin" {
+  source = "./modules/cloudfront-admin"
+  
+  alb_dns_name           = module.admin_service.admin_alb_dns_name
+  alb_security_group_id = module.vpc.alb_sg_id
+  environment            = "production"
+  
+  depends_on = [module.admin_service]
 }
